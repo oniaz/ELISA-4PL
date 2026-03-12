@@ -17,6 +17,7 @@ with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
 streamlit_analytics.start_tracking(
     firestore_key_file=firebase_key_path,
     firestore_collection_name="analytics"
+    unsafe_password=st.secrets["analytics_password"]
 )
 
 # ── Page config ────────────────────────────────────────────────────────────────
