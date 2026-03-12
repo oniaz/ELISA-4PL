@@ -225,7 +225,7 @@ def make_figure(A, B, C, D, OD, concentration, OD_sample=None, conc_sample=None)
                label="Standard Points", edgecolors="#fff", linewidths=0.5)
 
     if OD_sample is not None and conc_sample is not None:
-        ax.scatter([OD_sample], [conc_sample], color="#e03e3e", s=100, zorder=4,
+        ax.scatter([OD_sample], [conc_sample], color="#2e55e2", s=100, zorder=4,
                    marker="D", label=f"Sample  ({OD_sample:.3f} → {conc_sample:.2f})",
                    edgecolors="#fff", linewidths=0.7)
         ax.axhline(conc_sample, color="#2d7a55", linewidth=0.8, linestyle="--", alpha=0.4)
@@ -260,6 +260,7 @@ for key, val in {
     "conc_list": [],
     "od_list": [],
     "new_conc_val": "",
+    "fit_count": 0,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = val
@@ -416,6 +417,7 @@ with left:
                         "last_od": None,
                         "last_conc": None,
                         "last_extrapolated": False,
+                        "fit_count": st.session_state.fit_count + 1,
                     })
                     st.markdown('<span class="pill-success">✓ Model fitted</span>', unsafe_allow_html=True)
             except Exception as e:
@@ -470,6 +472,7 @@ with left:
             st.session_state.last_extrapolated = extrapolated
             flag = " ⚠ extrapolated" if extrapolated else ""
             st.session_state.results.append({
+                "Model Fit #": st.session_state.fit_count,
                 "OD": round(sample_od, 4),
                 "Concentration": round(conc_val, 4),
                 "Note": "extrapolated" if extrapolated else ""
