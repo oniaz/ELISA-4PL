@@ -34,7 +34,7 @@ html, body, [class*="css"] {
     padding: 6px 0 6px 16px;
     margin-bottom: 28px;
 }
-.title-block h1 {
+.title-block-h1 {
     font-family: 'DM Mono', monospace;
     font-size: 1.4rem;
     color: #1a1a1a;
@@ -237,7 +237,7 @@ for key, val in {
 # ── Title ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="title-block">
-  <h1>◈ 4PL MODEL FITTING</h1>
+  <div class="title-block-h1">◈ 4PL MODEL FITTING</div>
   <p>Four-Parameter Logistic Regression · Standard Curve Analysis</p>
 </div>
 """, unsafe_allow_html=True)
@@ -473,3 +473,10 @@ with right:
         csv = df.to_csv(index=False).encode()
         st.download_button("⬇  Export CSV", csv, "4pl_results.csv", "text/csv",
                            use_container_width=True)
+
+st.markdown("""
+<div style="font-family:'DM Mono',monospace; font-size:0.7rem; color:#ccc;
+            text-align:center; padding: 24px 0 8px 0;">
+    built by Omnia Abouhaikal &nbsp;·&nbsp; @oniaz
+</div>
+""", unsafe_allow_html=True)
