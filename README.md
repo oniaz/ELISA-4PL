@@ -1,4 +1,5 @@
-# ◈ 4PL Model Fitting — ELISA Standard Curve Analyzer
+# ELISA Standard Curve Analyzer - 4PL Model Fitting
+![App Icon](favicon.png)
 
 A clean, minimal web app for fitting **Four-Parameter Logistic (4PL)** curves to ELISA standard curve data and calculating sample concentrations from OD readings.
 
@@ -100,6 +101,7 @@ Click **⬇ Export CSV** to download all calculated results.
 .
 ├── app.py            # Main Streamlit app
 ├── requirements.txt  # Python dependencies
+├── favicon.png       # App favicon
 └── README.md
 ```
 
