@@ -149,6 +149,9 @@ div[data-testid="stDataFrame"] {
 /* Divider */
 hr { border-color: rgba(128,128,128,0.2) !important; margin: 20px 0 !important; }
 </style>
+
+<img src="https://hits.sh/elisa-4pl.streamlit.app.svg" style="display:none"/>
+
 """, unsafe_allow_html=True)
 
 # ── Math ──────────────────────────────────────────────────────────────────────
