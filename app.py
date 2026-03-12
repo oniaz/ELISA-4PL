@@ -6,7 +6,12 @@ import streamlit as st
 import pandas as pd
 import streamlit_analytics2 as streamlit_analytics
 
-streamlit_analytics.start_tracking()
+streamlit_analytics.start_tracking(
+    streamlit_analytics.start_tracking(
+    firestore_key_file=st.secrets["firebase"],
+    firestore_collection_name="analytics"
+)
+)
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ELISA 4PL Fitting",
@@ -151,16 +156,6 @@ div[data-testid="stDataFrame"] {
 /* Divider */
 hr { border-color: rgba(128,128,128,0.2) !important; margin: 20px 0 !important; }
 </style>
-
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-V6593BYP4X"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-V6593BYP4X');
-</script>
 
 """, unsafe_allow_html=True)
 
