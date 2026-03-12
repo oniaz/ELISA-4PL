@@ -172,16 +172,44 @@ hr { border-color: #e8e8e4 !important; margin: 20px 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Math (unchanged) ───────────────────────────────────────────────────────────
+# ── Math ──────────────────────────────────────────────────────────────────────
 def four_param_logistic(x, A, B, C, D):
     return D + (A - D) / (1 + (x / C)**B)
 
 def inverse_four_param_logistic(OD, A, B, C, D):
-    return C * np.abs((A - OD) / (OD - D)) ** (1 / B)
+    # Check sign to avoid silent abs() masking bad inputs
+    numerator = (A - OD) / (OD - D)
+    if numerator <= 0:
+        raise ValueError(
+            f"OD value {OD:.4f} is outside the range of the standard curve "
+            f"(valid range: {min(A,D):.4f} – {max(A,D):.4f}). "
+            "Result would be extrapolated and unreliable."
+        )
+    return C * (numerator ** (1 / B))
 
 def fit_model(concentration, OD):
-    params, _ = opt.curve_fit(four_param_logistic, concentration, OD)
-    return params  # A, B, C, D
+    # Bounds: A,D unconstrained; B > 0 (positive slope); C > 0 (EC50 must be positive)
+    lower = [-np.inf, 1e-6,  1e-9, -np.inf]
+    upper = [ np.inf, np.inf, np.inf,  np.inf]
+    params, covariance = opt.curve_fit(
+        four_param_logistic, concentration, OD,
+        p0=[min(OD), 1.0, np.median(concentration), max(OD)],
+        bounds=(lower, upper),
+        maxfev=10000
+    )
+    return params, covariance
+
+def compute_r2(concentration, OD, A, B, C, D):
+    predicted = four_param_logistic(concentration, A, B, C, D)
+    ss_res = np.sum((OD - predicted) ** 2)
+    ss_tot = np.sum((OD - np.mean(OD)) ** 2)
+    return 1 - (ss_res / ss_tot) if ss_tot != 0 else 1.0
+
+def check_duplicates(concentration):
+    seen = {}
+    for c in concentration:
+        seen[c] = seen.get(c, 0) + 1
+    return [c for c, count in seen.items() if count > 1]
 
 # ── Plot ───────────────────────────────────────────────────────────────────────
 def make_figure(A, B, C, D, OD, concentration, OD_sample=None, conc_sample=None):
@@ -194,7 +222,7 @@ def make_figure(A, B, C, D, OD, concentration, OD_sample=None, conc_sample=None)
 
     ax.plot(y_vals, x_vals, color="#1a1a1a", linewidth=2, label="Fitted 4PL Curve", zorder=2)
     ax.scatter(OD, concentration, color="#e03e3e", s=65, zorder=3,
-           label="Standard Points", edgecolors="#fff", linewidths=0.5)
+               label="Standard Points", edgecolors="#fff", linewidths=0.5)
 
     if OD_sample is not None and conc_sample is not None:
         ax.scatter([OD_sample], [conc_sample], color="#e03e3e", s=100, zorder=4,
@@ -223,12 +251,14 @@ for key, val in {
     "model_ready": False,
     "A": None, "B": None, "C": None, "D": None,
     "concentration": None, "OD": None,
+    "r2": None,
     "results": [],
     "last_od": None,
     "last_conc": None,
-    "input_mode": "bulk",       # "bulk" or "onebyone"
-    "conc_list": [],            # one-by-one concentrations
-    "od_list": [],              # one-by-one ODs (one per conc entry)
+    "last_extrapolated": False,
+    "input_mode": "bulk",
+    "conc_list": [],
+    "od_list": [],
     "new_conc_val": "",
 }.items():
     if key not in st.session_state:
@@ -362,19 +392,30 @@ with left:
             st.error("Fill in all values before fitting.")
         else:
             try:
-                conc = np.array(conc_final)
-                od   = np.array(od_final)
+                conc = np.array(conc_final, dtype=float)
+                od   = np.array(od_final,   dtype=float)
                 if len(conc) != len(od):
                     st.error("Concentration and OD arrays must be the same length.")
+                elif len(conc) < 4:
+                    st.error("Need at least 4 data points to fit a 4PL model.")
+                elif np.any(conc < 0):
+                    st.error("Concentration values must be non-negative.")
                 else:
-                    A, B, C, D = fit_model(conc, od)
+                    # Warn about duplicates but still allow fitting
+                    dupes = check_duplicates(conc.tolist())
+                    if dupes:
+                        st.warning(f"Duplicate concentration values detected: {dupes}. This may affect fit quality.")
+                    (A, B, C, D), cov = fit_model(conc, od)
+                    r2 = compute_r2(conc, od, A, B, C, D)
                     st.session_state.update({
                         "model_ready": True,
                         "A": A, "B": B, "C": C, "D": D,
+                        "r2": r2,
                         "concentration": conc,
                         "OD": od,
                         "last_od": None,
                         "last_conc": None,
+                        "last_extrapolated": False,
                     })
                     st.markdown('<span class="pill-success">✓ Model fitted</span>', unsafe_allow_html=True)
             except Exception as e:
@@ -385,12 +426,19 @@ with left:
         st.markdown("---")
         st.markdown('<div class="section-head">Model Parameters</div>', unsafe_allow_html=True)
         A, B, C, D = st.session_state.A, st.session_state.B, st.session_state.C, st.session_state.D
+        r2 = st.session_state.r2
+        r2_color = "#2d7a55" if r2 >= 0.99 else "#a06000" if r2 >= 0.95 else "#c0392b"
+        r2_label = "excellent" if r2 >= 0.99 else "acceptable" if r2 >= 0.95 else "poor — check data"
         st.markdown(f"""
         <div class="param-grid">
             <div class="param-card"><div class="label">A — Bottom asymptote</div><div class="value">{A:.5f}</div></div>
             <div class="param-card"><div class="label">B — Hill slope</div><div class="value">{B:.5f}</div></div>
             <div class="param-card"><div class="label">C — EC50 / inflection</div><div class="value">{C:.5f}</div></div>
             <div class="param-card"><div class="label">D — Top asymptote</div><div class="value">{D:.5f}</div></div>
+        </div>
+        <div class="param-card" style="margin-bottom:10px">
+            <div class="label">R² — Goodness of fit</div>
+            <div class="value" style="color:{r2_color}">{r2:.6f} <span style="font-size:0.65rem;color:{r2_color}">({r2_label})</span></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -414,20 +462,35 @@ with left:
         try:
             A, B, C, D = st.session_state.A, st.session_state.B, st.session_state.C, st.session_state.D
             conc_val = inverse_four_param_logistic(sample_od, A, B, C, D)
-            st.session_state.last_od   = sample_od
-            st.session_state.last_conc = conc_val
-            st.session_state.results.append({"OD": round(sample_od, 4), "Concentration": round(conc_val, 4)})
+            od_min = float(np.min(st.session_state.OD))
+            od_max = float(np.max(st.session_state.OD))
+            extrapolated = sample_od < od_min or sample_od > od_max
+            st.session_state.last_od          = sample_od
+            st.session_state.last_conc        = conc_val
+            st.session_state.last_extrapolated = extrapolated
+            flag = " ⚠ extrapolated" if extrapolated else ""
+            st.session_state.results.append({
+                "OD": round(sample_od, 4),
+                "Concentration": round(conc_val, 4),
+                "Note": "extrapolated" if extrapolated else ""
+            })
+        except ValueError as e:
+            st.error(str(e))
         except Exception as e:
             st.error(f"Error: {e}")
 
     if st.session_state.last_conc is not None:
+        extrap = st.session_state.get("last_extrapolated", False)
+        border_color = "#e8a020" if extrap else "#1a1a1a"
+        extra_note = '<div style="color:#a06000;font-size:0.68rem;margin-top:6px">⚠ OD is outside standard curve range — treat with caution</div>' if extrap else ""
         st.markdown(f"""
-        <div class="result-box">
+        <div class="result-box" style="border-left-color:{border_color}">
             <div class="od-label">RESULT</div>
             <span class="od-val">OD {st.session_state.last_od:.4f}</span>
             <span class="arrow">→</span>
             <span class="conc-val">{st.session_state.last_conc:.4f}</span>
-            <span style="color:#8892a4; font-size:0.75rem;"> conc</span>
+            <span style="color:#aaa; font-size:0.75rem;"> conc</span>
+            {extra_note}
         </div>
         """, unsafe_allow_html=True)
 
